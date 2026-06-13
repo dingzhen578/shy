@@ -1,8 +1,18 @@
 "use client";
 
+import Image from "next/image";
 import type { FormEvent } from "react";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { encouragements } from "@/src/lib/encouragements";
+import {
+  DAILY_FREE_LIMIT,
+  FREE_USAGE_STORAGE_KEY,
+  MEMBERSHIP_STORAGE_KEY,
+  USED_MEMBERSHIP_CODES_STORAGE_KEY,
+  activateMembership,
+  getMembershipStatus,
+  normalizeFreeUsage
+} from "@/src/lib/membership";
 
 type GenerateResponse = {
   answer?: string;
@@ -16,13 +26,25 @@ const sampleQuestions = [
   "评价罗斯福新政"
 ];
 
-const DAILY_FREE_LIMIT = 3;
-const FREE_USAGE_STORAGE_KEY = "history-senior-notes-free-usage";
-
 type FreeUsage = {
   date: string;
   remaining: number;
 };
+
+type Membership = {
+  type: "7days" | "month" | "permanent";
+  activatedAt: string;
+  expiresAt: string | null;
+  code: string;
+};
+
+type MembershipStatus =
+  | { status: "active"; membership: Membership }
+  | { status: "expired" | "invalid"; membership: null };
+
+type MembershipActivation =
+  | { ok: true; membership: Membership }
+  | { ok: false; reason: "invalid" | "used" };
 
 type AnswerSection = {
   id: string;
@@ -67,37 +89,46 @@ function getTodayKey() {
   return `${year}-${month}-${day}`;
 }
 
-function readFreeUsage(): FreeUsage {
-  const today = getTodayKey();
-
-  if (typeof window === "undefined") {
-    return { date: today, remaining: DAILY_FREE_LIMIT };
-  }
-
+function readStoredJson<T>(key: string): T | null {
   try {
-    const rawUsage = window.localStorage.getItem(FREE_USAGE_STORAGE_KEY);
+    const rawValue = window.localStorage.getItem(key);
 
-    if (!rawUsage) {
-      return { date: today, remaining: DAILY_FREE_LIMIT };
+    if (!rawValue) {
+      return null;
     }
 
-    const parsedUsage = JSON.parse(rawUsage) as Partial<FreeUsage>;
-
-    if (parsedUsage.date !== today || typeof parsedUsage.remaining !== "number") {
-      return { date: today, remaining: DAILY_FREE_LIMIT };
-    }
-
-    return {
-      date: today,
-      remaining: Math.min(DAILY_FREE_LIMIT, Math.max(0, parsedUsage.remaining))
-    };
+    return JSON.parse(rawValue) as T;
   } catch {
-    return { date: today, remaining: DAILY_FREE_LIMIT };
+    return null;
+  }
+}
+
+function writeStoredJson(key: string, value: unknown) {
+  try {
+    window.localStorage.setItem(key, JSON.stringify(value));
+  } catch {
+    // Some private browsers disable localStorage. Keep the current session usable.
+  }
+}
+
+function removeStoredValue(key: string) {
+  try {
+    window.localStorage.removeItem(key);
+  } catch {
+    // Storage may be unavailable in restricted browser contexts.
   }
 }
 
 function saveFreeUsage(usage: FreeUsage) {
-  window.localStorage.setItem(FREE_USAGE_STORAGE_KEY, JSON.stringify(usage));
+  writeStoredJson(FREE_USAGE_STORAGE_KEY, usage);
+}
+
+function formatMembershipDate(value: string) {
+  const date = new Date(value);
+
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(
+    date.getDate()
+  ).padStart(2, "0")}`;
 }
 
 function pickEncouragement() {
@@ -199,26 +230,101 @@ export default function Home() {
   const [isLoading, setIsLoading] = useState(false);
   const [isSavingImage, setIsSavingImage] = useState(false);
   const [toastMessage, setToastMessage] = useState("");
-  const [freeUsage, setFreeUsage] = useState<FreeUsage>(() => {
-    const usage = readFreeUsage();
+  const [freeUsage, setFreeUsage] = useState<FreeUsage>({
+    date: "",
+    remaining: DAILY_FREE_LIMIT
+  });
+  const [membership, setMembership] = useState<Membership | null>(null);
+  const [usedMembershipCodes, setUsedMembershipCodes] = useState<string[]>([]);
+  const [membershipCode, setMembershipCode] = useState("");
+  const [membershipMessage, setMembershipMessage] = useState("");
+  const [isStorageReady, setIsStorageReady] = useState(false);
+  const answerCardRef = useRef<HTMLElement>(null);
+  const isMember = membership !== null;
+  const hasFreeUses = freeUsage.remaining > 0;
+  const hasGenerationAccess = isMember || hasFreeUses;
 
-    if (typeof window !== "undefined") {
-      saveFreeUsage(usage);
+  useEffect(() => {
+    function syncLocalState() {
+      const today = getTodayKey();
+      const storedUsage = readStoredJson<Partial<FreeUsage>>(FREE_USAGE_STORAGE_KEY);
+      const nextUsage = normalizeFreeUsage(storedUsage, today) as FreeUsage;
+      const storedUsedCodes = readStoredJson<unknown>(USED_MEMBERSHIP_CODES_STORAGE_KEY);
+      const nextUsedCodes = Array.isArray(storedUsedCodes)
+        ? storedUsedCodes.filter((code): code is string => typeof code === "string")
+        : [];
+      const storedMembership = readStoredJson<Membership>(MEMBERSHIP_STORAGE_KEY);
+      const membershipStatus = getMembershipStatus(
+        storedMembership,
+        new Date()
+      ) as MembershipStatus;
+
+      saveFreeUsage(nextUsage);
+      setFreeUsage(nextUsage);
+      setUsedMembershipCodes(nextUsedCodes);
+
+      if (membershipStatus.status === "active") {
+        setMembership(membershipStatus.membership);
+      } else {
+        removeStoredValue(MEMBERSHIP_STORAGE_KEY);
+        setMembership(null);
+
+        if (membershipStatus.status === "expired") {
+          setMembershipMessage("会员体验已结束，可以重新开通继续使用。");
+        }
+      }
+
+      setIsStorageReady(true);
     }
 
-    return usage;
-  });
-  const answerCardRef = useRef<HTMLElement>(null);
-  const hasFreeUses = freeUsage.remaining > 0;
+    const initialTimer = window.setTimeout(syncLocalState, 0);
+    const expiryTimer = window.setInterval(syncLocalState, 60_000);
 
-  function decrementFreeUsage() {
+    window.addEventListener("focus", syncLocalState);
+
+    return () => {
+      window.clearTimeout(initialTimer);
+      window.clearInterval(expiryTimer);
+      window.removeEventListener("focus", syncLocalState);
+    };
+  }, []);
+
+  function decrementFreeUsage(currentUsage: FreeUsage) {
     const nextUsage = {
       date: getTodayKey(),
-      remaining: Math.max(0, freeUsage.remaining - 1)
+      remaining: Math.max(0, currentUsage.remaining - 1)
     };
 
     saveFreeUsage(nextUsage);
     setFreeUsage(nextUsage);
+  }
+
+  function handleMembershipActivation(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    const result = activateMembership(
+      membershipCode,
+      usedMembershipCodes,
+      new Date()
+    ) as MembershipActivation;
+
+    if (!result.ok) {
+      setMembershipMessage("会员码好像不太对，请检查后再试一下。");
+      return;
+    }
+
+    const nextUsedCodes = Array.from(
+      new Set([...usedMembershipCodes, result.membership.code])
+    );
+
+    writeStoredJson(MEMBERSHIP_STORAGE_KEY, result.membership);
+    writeStoredJson(USED_MEMBERSHIP_CODES_STORAGE_KEY, nextUsedCodes);
+    setMembership(result.membership);
+    setUsedMembershipCodes(nextUsedCodes);
+    setMembershipCode("");
+    setMembershipMessage("");
+    setToastMessage("会员已激活 ✨");
+    window.setTimeout(() => setToastMessage(""), 2600);
   }
 
   async function handleSaveImage() {
@@ -269,6 +375,30 @@ export default function Home() {
     event.preventDefault();
 
     const trimmedQuestion = question.trim();
+    const currentUsage = normalizeFreeUsage(
+      freeUsage,
+      getTodayKey()
+    ) as FreeUsage;
+    const membershipStatus = getMembershipStatus(
+      membership,
+      new Date()
+    ) as MembershipStatus;
+    const hasActiveMembership = membershipStatus.status === "active";
+
+    if (membership && !hasActiveMembership) {
+      removeStoredValue(MEMBERSHIP_STORAGE_KEY);
+      setMembership(null);
+      setMembershipMessage("会员体验已结束，可以重新开通继续使用。");
+    }
+
+    if (
+      currentUsage.date !== freeUsage.date ||
+      currentUsage.remaining !== freeUsage.remaining
+    ) {
+      saveFreeUsage(currentUsage);
+      setFreeUsage(currentUsage);
+    }
+
     if (!trimmedQuestion) {
       setError("先写一道历史题目吧，例如：评价洋务运动。");
       setAnswer("");
@@ -276,7 +406,7 @@ export default function Home() {
       return;
     }
 
-    if (!hasFreeUses) {
+    if (!hasActiveMembership && currentUsage.remaining <= 0) {
       setError("");
       return;
     }
@@ -301,9 +431,16 @@ export default function Home() {
         throw new Error(data.error || "小助手刚刚走神了，请稍后再试一下。");
       }
 
-      setAnswer(data.answer || "");
+      if (!data.answer?.trim()) {
+        throw new Error("小助手刚刚走神了，请稍后再试一下。");
+      }
+
+      setAnswer(data.answer);
       setEncouragement(pickEncouragement());
-      decrementFreeUsage();
+
+      if (!hasActiveMembership) {
+        decrementFreeUsage(currentUsage);
+      }
     } catch (requestError) {
       setError(
         requestError instanceof Error
@@ -347,9 +484,15 @@ export default function Home() {
             <span className="rounded-full bg-white/70 px-3 py-1.5 ring-1 ring-[#f1dce3]">
               适合背诵
             </span>
-            <span className="rounded-full bg-[#fff0dc] px-3 py-1.5 text-[#b56f46] ring-1 ring-[#f6dec0]">
-              今日剩余免费次数：{freeUsage.remaining}/{DAILY_FREE_LIMIT}
-            </span>
+            {isMember ? (
+              <span className="rounded-full bg-[#f6efff] px-3 py-1.5 text-[#8f6ab3] ring-1 ring-[#e7d7f5]">
+                会员版：今日无限生成
+              </span>
+            ) : (
+              <span className="rounded-full bg-[#fff0dc] px-3 py-1.5 text-[#b56f46] ring-1 ring-[#f6dec0]">
+                今日剩余免费次数：{freeUsage.remaining}/{DAILY_FREE_LIMIT}
+              </span>
+            )}
           </div>
         </header>
 
@@ -391,11 +534,13 @@ export default function Home() {
 
           <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <p className="text-sm leading-7 text-[#8a7b7f]">
-              今日剩余免费次数：{freeUsage.remaining}/{DAILY_FREE_LIMIT}
+              {isMember
+                ? "会员版：今日无限生成"
+                : `今日剩余免费次数：${freeUsage.remaining}/${DAILY_FREE_LIMIT}`}
             </p>
             <button
               type="submit"
-              disabled={isLoading || !hasFreeUses}
+              disabled={isLoading || !isStorageReady || !hasGenerationAccess}
               className="inline-flex min-h-[3.25rem] w-full items-center justify-center rounded-full bg-[linear-gradient(135deg,#f0a8c3_0%,#c7a6ee_100%)] px-7 text-base font-semibold text-white shadow-[0_18px_34px_rgba(210,135,176,0.28)] transition duration-200 hover:-translate-y-0.5 hover:shadow-[0_20px_42px_rgba(210,135,176,0.34)] active:scale-[0.98] disabled:translate-y-0 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
             >
               {isLoading ? "正在整理中..." : "帮我整理答案"}
@@ -403,7 +548,67 @@ export default function Home() {
           </div>
         </form>
 
-        {!hasFreeUses ? (
+        {membership ? (
+          <section className="rounded-[2.1rem] border border-[#e7d8ef] bg-[#fcf8ff]/92 p-5 shadow-[0_22px_65px_rgba(168,139,190,0.13)] backdrop-blur-xl sm:p-6">
+            <p className="text-lg font-semibold text-[#9067aa]">会员已激活 ✨</p>
+            <p className="mt-2 text-sm font-semibold leading-7 text-[#6f5f78]">
+              会员版：今日无限生成
+            </p>
+            <div className="mt-4 rounded-3xl bg-white/72 px-4 py-4 text-sm leading-7 text-[#7b6f82] ring-1 ring-[#eadff1]">
+              {membership.type === "permanent" ? (
+                <p className="font-semibold text-[#9067aa]">永久测试会员</p>
+              ) : (
+                <p>
+                  有效期至：
+                  <span className="font-semibold text-[#9067aa]">
+                    {formatMembershipDate(membership.expiresAt as string)}
+                  </span>
+                </p>
+              )}
+            </div>
+          </section>
+        ) : (
+          <section className="rounded-[2.1rem] border border-white/75 bg-[#fffaf5]/88 p-5 shadow-[0_18px_55px_rgba(186,132,146,0.10)] backdrop-blur-xl sm:p-6">
+            <div className="mb-4">
+              <p className="text-base font-semibold text-[#9f4f68]">
+                已经开通？输入会员码激活
+              </p>
+              <p className="mt-1 text-sm leading-7 text-[#8a7b7f]">
+                激活后，会员有效期内可以无限整理历史主观题。
+              </p>
+            </div>
+            <form
+              onSubmit={handleMembershipActivation}
+              className="flex flex-col gap-3 sm:flex-row"
+            >
+              <input
+                value={membershipCode}
+                onChange={(event) => {
+                  setMembershipCode(event.target.value);
+                  setMembershipMessage("");
+                }}
+                placeholder="请输入会员码"
+                autoComplete="off"
+                spellCheck={false}
+                className="min-h-[3.25rem] w-full rounded-full border border-[#efd9e2] bg-white/82 px-5 text-sm font-semibold uppercase tracking-[0.04em] text-[#57484e] outline-none transition placeholder:normal-case placeholder:font-normal placeholder:tracking-normal placeholder:text-[#b6a8ac] focus:border-[#dfa0b8] focus:bg-white focus:shadow-[0_0_0_5px_rgba(235,166,190,0.16)]"
+              />
+              <button
+                type="submit"
+                disabled={!isStorageReady}
+                className="inline-flex min-h-[3.25rem] shrink-0 items-center justify-center rounded-full border border-[#e6cced] bg-[#f7efff] px-6 text-sm font-semibold text-[#8d62a5] shadow-[0_12px_26px_rgba(168,139,190,0.12)] transition hover:-translate-y-0.5 hover:bg-[#f3e8ff] active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                激活会员
+              </button>
+            </form>
+            {membershipMessage ? (
+              <p className="mt-3 rounded-3xl bg-[#fff3f7] px-4 py-3 text-sm leading-7 text-[#a25c73] ring-1 ring-[#f2d5df]">
+                {membershipMessage}
+              </p>
+            ) : null}
+          </section>
+        )}
+
+        {!isMember && !hasFreeUses ? (
           <section className="rounded-[2.1rem] border border-[#f2d4df] bg-[#fff8fb]/95 p-5 shadow-[0_22px_65px_rgba(186,132,146,0.13)] backdrop-blur-xl sm:p-6">
             <p className="text-lg font-semibold text-[#9f4f68]">
               今天的免费次数用完啦 ✨
@@ -418,22 +623,35 @@ export default function Home() {
               </div>
               <div className="rounded-3xl bg-white/75 px-4 py-4 ring-1 ring-[#f2d8df]">
                 <p className="text-sm text-[#8a7b7f]">月卡</p>
-                <p className="mt-1 text-2xl font-semibold text-[#b75f7a]">19元</p>
+                <p className="mt-1 text-2xl font-semibold text-[#b75f7a]">14.9元</p>
               </div>
             </div>
             <p className="mt-4 text-sm leading-8 text-[#7b6f73]">
               开通后可继续生成历史主观题学习笔记。
             </p>
-            <button
-              type="button"
+            <a
+              href="#wechat-contact"
               className="mt-4 inline-flex min-h-[3rem] w-full items-center justify-center rounded-full bg-[linear-gradient(135deg,#f0a8c3_0%,#c7a6ee_100%)] px-6 text-sm font-semibold text-white shadow-[0_16px_32px_rgba(210,135,176,0.24)] transition hover:-translate-y-0.5 active:scale-[0.98] sm:w-auto"
             >
               联系我开通
-            </button>
-            <div className="mt-4 rounded-3xl border border-dashed border-[#e8c7d2] bg-white/60 px-4 py-5 text-center text-sm leading-7 text-[#9b7e87]">
-              QQ / 微信 / 二维码图片
-              <br />
-              请在这里放置你的 QQ / 微信 / 二维码。
+            </a>
+            <div
+              id="wechat-contact"
+              className="mt-4 scroll-mt-5 rounded-[1.75rem] border border-[#ead5dc] bg-white/68 p-4 text-center text-sm leading-7 text-[#9b7e87]"
+            >
+              <p className="font-semibold text-[#9f4f68]">微信扫码联系开通</p>
+              <p className="mt-1">添加时可以备注“历史会员”。</p>
+              <div className="mx-auto mt-4 max-w-[17rem] overflow-hidden rounded-[1.4rem] bg-white p-2 shadow-[0_16px_38px_rgba(186,132,146,0.13)] ring-1 ring-[#f0dde3]">
+                <Image
+                  src="/wechat-qr.jpg"
+                  alt="微信开通会员二维码"
+                  width={888}
+                  height={1131}
+                  className="h-auto w-full rounded-[1rem]"
+                  sizes="(max-width: 640px) 75vw, 272px"
+                  priority={false}
+                />
+              </div>
             </div>
           </section>
         ) : null}
