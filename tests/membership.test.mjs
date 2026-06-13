@@ -16,9 +16,23 @@ test("membership configuration contains the requested codes", () => {
     "HISTORY-7DAYS-001",
     "HISTORY-7DAYS-002",
     "HISTORY-7DAYS-003",
+    "HISTORY-7DAYS-004",
+    "HISTORY-7DAYS-005",
+    "HISTORY-7DAYS-006",
+    "HISTORY-7DAYS-007",
+    "HISTORY-7DAYS-008",
+    "HISTORY-7DAYS-009",
+    "HISTORY-7DAYS-010",
     "HISTORY-MONTH-001",
     "HISTORY-MONTH-002",
     "HISTORY-MONTH-003",
+    "HISTORY-MONTH-004",
+    "HISTORY-MONTH-005",
+    "HISTORY-MONTH-006",
+    "HISTORY-MONTH-007",
+    "HISTORY-MONTH-008",
+    "HISTORY-MONTH-009",
+    "HISTORY-MONTH-010",
     "HISTORY-VIP-TEST"
   ]);
 });

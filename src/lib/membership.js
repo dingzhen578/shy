@@ -7,9 +7,23 @@ export const MEMBERSHIP_CODES = Object.freeze({
   "HISTORY-7DAYS-001": { type: "7days", durationDays: 7 },
   "HISTORY-7DAYS-002": { type: "7days", durationDays: 7 },
   "HISTORY-7DAYS-003": { type: "7days", durationDays: 7 },
+  "HISTORY-7DAYS-004": { type: "7days", durationDays: 7 },
+  "HISTORY-7DAYS-005": { type: "7days", durationDays: 7 },
+  "HISTORY-7DAYS-006": { type: "7days", durationDays: 7 },
+  "HISTORY-7DAYS-007": { type: "7days", durationDays: 7 },
+  "HISTORY-7DAYS-008": { type: "7days", durationDays: 7 },
+  "HISTORY-7DAYS-009": { type: "7days", durationDays: 7 },
+  "HISTORY-7DAYS-010": { type: "7days", durationDays: 7 },
   "HISTORY-MONTH-001": { type: "month", durationDays: 30 },
   "HISTORY-MONTH-002": { type: "month", durationDays: 30 },
   "HISTORY-MONTH-003": { type: "month", durationDays: 30 },
+  "HISTORY-MONTH-004": { type: "month", durationDays: 30 },
+  "HISTORY-MONTH-005": { type: "month", durationDays: 30 },
+  "HISTORY-MONTH-006": { type: "month", durationDays: 30 },
+  "HISTORY-MONTH-007": { type: "month", durationDays: 30 },
+  "HISTORY-MONTH-008": { type: "month", durationDays: 30 },
+  "HISTORY-MONTH-009": { type: "month", durationDays: 30 },
+  "HISTORY-MONTH-010": { type: "month", durationDays: 30 },
   "HISTORY-VIP-TEST": { type: "permanent", durationDays: null }
 });
 
