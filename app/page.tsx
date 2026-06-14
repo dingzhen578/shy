@@ -13,6 +13,7 @@ import {
   getMembershipStatus,
   normalizeFreeUsage
 } from "@/src/lib/membership";
+import { shareOrDownloadImage } from "@/src/lib/imageShare";
 
 type GenerateResponse = {
   answer?: string;
@@ -335,21 +336,35 @@ export default function Home() {
     setIsSavingImage(true);
 
     try {
-      const html2canvas = (await import("html2canvas")).default;
-      const canvas = await html2canvas(answerCardRef.current, {
+      const { toBlob } = await import("html-to-image");
+      const imageBlob = await toBlob(answerCardRef.current, {
         backgroundColor: "#fffaf5",
-        scale: Math.min(3, window.devicePixelRatio || 2),
-        useCORS: true
+        cacheBust: true,
+        pixelRatio: Math.min(2, window.devicePixelRatio || 2)
       });
-      const imageUrl = canvas.toDataURL("image/png");
-      const link = document.createElement("a");
 
-      link.href = imageUrl;
-      link.download = `历史学姐笔记-${getTodayKey()}.png`;
-      link.click();
+      if (!imageBlob) {
+        throw new Error("Failed to create notebook image.");
+      }
+
+      const result = await shareOrDownloadImage({
+        blob: imageBlob,
+        fileName: `历史学姐笔记-${getTodayKey()}.png`
+      });
+
+      if (result === "shared") {
+        setToastMessage("已经打开分享啦，可以发给同学或保存到相册 ✨");
+      } else if (result === "downloaded") {
+        setToastMessage("学习卡片已经保存好啦 ✨");
+      } else {
+        setToastMessage("已取消分享，笔记还在这里。");
+      }
+
+      window.setTimeout(() => setToastMessage(""), 3000);
     } catch (saveError) {
       console.error("Failed to save notebook image:", saveError);
-      setError("学习卡片暂时保存失败，请稍后再试一下。");
+      setToastMessage("学习卡片暂时生成失败，请稍后再试一下。");
+      window.setTimeout(() => setToastMessage(""), 3000);
     } finally {
       setIsSavingImage(false);
     }
@@ -721,7 +736,7 @@ export default function Home() {
                   disabled={isSavingImage}
                   className="inline-flex min-h-[3rem] w-full items-center justify-center rounded-full border border-[#ead0da] bg-white/78 px-5 text-sm font-semibold text-[#9f4f68] shadow-[0_14px_28px_rgba(186,132,146,0.12)] transition hover:-translate-y-0.5 hover:bg-[#fff5fb] active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
                 >
-                  {isSavingImage ? "正在生成图片..." : "保存为学习卡片图"}
+                  {isSavingImage ? "正在生成图片..." : "分享 / 保存学习卡片"}
                 </button>
               </div>
             </div>
