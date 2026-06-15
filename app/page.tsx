@@ -11,6 +11,7 @@ import {
   USED_MEMBERSHIP_CODES_STORAGE_KEY,
   activateMembership,
   getMembershipStatus,
+  getNotebookFeatureAccess,
   normalizeFreeUsage
 } from "@/src/lib/membership";
 import { shareOrDownloadImage } from "@/src/lib/imageShare";
@@ -26,6 +27,15 @@ const sampleQuestions = [
   "说明新航路开辟的影响",
   "评价罗斯福新政"
 ];
+
+const studyScenarios = [
+  "月考前整理历史主观题",
+  "把错题整理成答题框架",
+  "快速复习背景 / 影响 / 意义",
+  "不想每次都从零组织答案"
+];
+
+const commonUses = ["整理错题", "考前复习", "练习主观题结构", "生成学习卡片"];
 
 type FreeUsage = {
   date: string;
@@ -241,9 +251,11 @@ export default function Home() {
   const [membershipMessage, setMembershipMessage] = useState("");
   const [isStorageReady, setIsStorageReady] = useState(false);
   const answerCardRef = useRef<HTMLElement>(null);
+  const upgradeCardRef = useRef<HTMLElement>(null);
   const isMember = membership !== null;
   const hasFreeUses = freeUsage.remaining > 0;
   const hasGenerationAccess = isMember || hasFreeUses;
+  const featureAccess = getNotebookFeatureAccess(isMember);
 
   useEffect(() => {
     function syncLocalState() {
@@ -328,7 +340,18 @@ export default function Home() {
     window.setTimeout(() => setToastMessage(""), 2600);
   }
 
+  function showMembershipBenefits() {
+    setToastMessage("开通体验版后，就可以复制和保存学习卡片啦 ✨");
+    upgradeCardRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    window.setTimeout(() => setToastMessage(""), 3000);
+  }
+
   async function handleSaveImage() {
+    if (!featureAccess.canSaveImage) {
+      showMembershipBenefits();
+      return;
+    }
+
     if (!answerCardRef.current) {
       return;
     }
@@ -371,6 +394,11 @@ export default function Home() {
   }
 
   async function handleCopyAnswer() {
+    if (!featureAccess.canCopy) {
+      showMembershipBenefits();
+      return;
+    }
+
     if (!answer) {
       return;
     }
@@ -563,113 +591,25 @@ export default function Home() {
           </div>
         </form>
 
-        {membership ? (
-          <section className="rounded-[2.1rem] border border-[#e7d8ef] bg-[#fcf8ff]/92 p-5 shadow-[0_22px_65px_rgba(168,139,190,0.13)] backdrop-blur-xl sm:p-6">
-            <p className="text-lg font-semibold text-[#9067aa]">会员已激活 ✨</p>
-            <p className="mt-2 text-sm font-semibold leading-7 text-[#6f5f78]">
-              会员版：今日无限生成
-            </p>
-            <div className="mt-4 rounded-3xl bg-white/72 px-4 py-4 text-sm leading-7 text-[#7b6f82] ring-1 ring-[#eadff1]">
-              {membership.type === "permanent" ? (
-                <p className="font-semibold text-[#9067aa]">永久测试会员</p>
-              ) : (
-                <p>
-                  有效期至：
-                  <span className="font-semibold text-[#9067aa]">
-                    {formatMembershipDate(membership.expiresAt as string)}
-                  </span>
-                </p>
-              )}
-            </div>
-          </section>
-        ) : (
-          <section className="rounded-[2.1rem] border border-white/75 bg-[#fffaf5]/88 p-5 shadow-[0_18px_55px_rgba(186,132,146,0.10)] backdrop-blur-xl sm:p-6">
-            <div className="mb-4">
-              <p className="text-base font-semibold text-[#9f4f68]">
-                已经开通？输入会员码激活
-              </p>
-              <p className="mt-1 text-sm leading-7 text-[#8a7b7f]">
-                激活后，会员有效期内可以无限整理历史主观题。
-              </p>
-            </div>
-            <form
-              onSubmit={handleMembershipActivation}
-              className="flex flex-col gap-3 sm:flex-row"
-            >
-              <input
-                value={membershipCode}
-                onChange={(event) => {
-                  setMembershipCode(event.target.value);
-                  setMembershipMessage("");
-                }}
-                placeholder="请输入会员码"
-                autoComplete="off"
-                spellCheck={false}
-                className="min-h-[3.25rem] w-full rounded-full border border-[#efd9e2] bg-white/82 px-5 text-sm font-semibold uppercase tracking-[0.04em] text-[#57484e] outline-none transition placeholder:normal-case placeholder:font-normal placeholder:tracking-normal placeholder:text-[#b6a8ac] focus:border-[#dfa0b8] focus:bg-white focus:shadow-[0_0_0_5px_rgba(235,166,190,0.16)]"
-              />
-              <button
-                type="submit"
-                disabled={!isStorageReady}
-                className="inline-flex min-h-[3.25rem] shrink-0 items-center justify-center rounded-full border border-[#e6cced] bg-[#f7efff] px-6 text-sm font-semibold text-[#8d62a5] shadow-[0_12px_26px_rgba(168,139,190,0.12)] transition hover:-translate-y-0.5 hover:bg-[#f3e8ff] active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60"
+        <section className="rounded-[2.1rem] border border-white/75 bg-white/58 p-5 shadow-[0_18px_55px_rgba(186,132,146,0.09)] backdrop-blur-xl sm:p-6">
+          <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[#c06d87]">
+            Study Moments
+          </p>
+          <h2 className="mt-2 text-xl font-semibold text-[#3f3539]">适合这些场景</h2>
+          <div className="mt-4 grid gap-3 sm:grid-cols-2">
+            {studyScenarios.map((scenario, index) => (
+              <div
+                key={scenario}
+                className="flex min-h-[4.75rem] items-center gap-3 rounded-[1.45rem] bg-[#fffaf7]/88 px-4 py-3 text-sm leading-7 text-[#6f6266] shadow-[0_10px_28px_rgba(186,132,146,0.08)] ring-1 ring-[#f1e1dd]"
               >
-                激活会员
-              </button>
-            </form>
-            {membershipMessage ? (
-              <p className="mt-3 rounded-3xl bg-[#fff3f7] px-4 py-3 text-sm leading-7 text-[#a25c73] ring-1 ring-[#f2d5df]">
-                {membershipMessage}
-              </p>
-            ) : null}
-          </section>
-        )}
-
-        {!isMember && !hasFreeUses ? (
-          <section className="rounded-[2.1rem] border border-[#f2d4df] bg-[#fff8fb]/95 p-5 shadow-[0_22px_65px_rgba(186,132,146,0.13)] backdrop-blur-xl sm:p-6">
-            <p className="text-lg font-semibold text-[#9f4f68]">
-              今天的免费次数用完啦 ✨
-            </p>
-            <p className="mt-3 text-sm leading-8 text-[#7b6f73]">
-              如果你觉得这个工具对历史复习有帮助，可以开通体验版：
-            </p>
-            <div className="mt-4 grid gap-3 sm:grid-cols-2">
-              <div className="rounded-3xl bg-white/75 px-4 py-4 ring-1 ring-[#f2d8df]">
-                <p className="text-sm text-[#8a7b7f]">7天体验</p>
-                <p className="mt-1 text-2xl font-semibold text-[#b75f7a]">9.9元</p>
+                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#fff0f5] text-xs font-semibold text-[#b75f7a] ring-1 ring-[#f2d7e1]">
+                  {String(index + 1).padStart(2, "0")}
+                </span>
+                <span>{scenario}</span>
               </div>
-              <div className="rounded-3xl bg-white/75 px-4 py-4 ring-1 ring-[#f2d8df]">
-                <p className="text-sm text-[#8a7b7f]">月卡</p>
-                <p className="mt-1 text-2xl font-semibold text-[#b75f7a]">14.9元</p>
-              </div>
-            </div>
-            <p className="mt-4 text-sm leading-8 text-[#7b6f73]">
-              开通后可继续生成历史主观题学习笔记。
-            </p>
-            <a
-              href="#wechat-contact"
-              className="mt-4 inline-flex min-h-[3rem] w-full items-center justify-center rounded-full bg-[linear-gradient(135deg,#f0a8c3_0%,#c7a6ee_100%)] px-6 text-sm font-semibold text-white shadow-[0_16px_32px_rgba(210,135,176,0.24)] transition hover:-translate-y-0.5 active:scale-[0.98] sm:w-auto"
-            >
-              联系我开通
-            </a>
-            <div
-              id="wechat-contact"
-              className="mt-4 scroll-mt-5 rounded-[1.75rem] border border-[#ead5dc] bg-white/68 p-4 text-center text-sm leading-7 text-[#9b7e87]"
-            >
-              <p className="font-semibold text-[#9f4f68]">微信扫码联系开通</p>
-              <p className="mt-1">添加时可以备注“历史会员”。</p>
-              <div className="mx-auto mt-4 max-w-[17rem] overflow-hidden rounded-[1.4rem] bg-white p-2 shadow-[0_16px_38px_rgba(186,132,146,0.13)] ring-1 ring-[#f0dde3]">
-                <Image
-                  src="/wechat-qr.jpg"
-                  alt="微信开通会员二维码"
-                  width={888}
-                  height={1131}
-                  className="h-auto w-full rounded-[1rem]"
-                  sizes="(max-width: 640px) 75vw, 272px"
-                  priority={false}
-                />
-              </div>
-            </div>
-          </section>
-        ) : null}
+            ))}
+          </div>
+        </section>
 
         <section
           aria-live="polite"
@@ -726,17 +666,29 @@ export default function Home() {
                 <button
                   type="button"
                   onClick={handleCopyAnswer}
-                  className="inline-flex min-h-[3rem] w-full items-center justify-center rounded-full border border-[#ead0da] bg-white/78 px-5 text-sm font-semibold text-[#9f4f68] shadow-[0_14px_28px_rgba(186,132,146,0.12)] transition hover:-translate-y-0.5 hover:bg-[#fff5fb] active:scale-[0.98] sm:w-auto"
+                  className={`inline-flex min-h-[3rem] w-full items-center justify-center rounded-full border px-5 text-sm font-semibold shadow-[0_14px_28px_rgba(186,132,146,0.12)] transition hover:-translate-y-0.5 active:scale-[0.98] sm:w-auto ${
+                    featureAccess.canCopy
+                      ? "border-[#ead0da] bg-white/78 text-[#9f4f68] hover:bg-[#fff5fb]"
+                      : "border-[#e5d8e9] bg-[#faf6fc] text-[#8a718e] hover:bg-[#f6eef9]"
+                  }`}
                 >
-                  复制这份笔记
+                  {featureAccess.canCopy ? "复制这份笔记" : "🔒 复制答案（会员）"}
                 </button>
                 <button
                   type="button"
                   onClick={handleSaveImage}
-                  disabled={isSavingImage}
-                  className="inline-flex min-h-[3rem] w-full items-center justify-center rounded-full border border-[#ead0da] bg-white/78 px-5 text-sm font-semibold text-[#9f4f68] shadow-[0_14px_28px_rgba(186,132,146,0.12)] transition hover:-translate-y-0.5 hover:bg-[#fff5fb] active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
+                  disabled={featureAccess.canSaveImage && isSavingImage}
+                  className={`inline-flex min-h-[3rem] w-full items-center justify-center rounded-full border px-5 text-sm font-semibold shadow-[0_14px_28px_rgba(186,132,146,0.12)] transition hover:-translate-y-0.5 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto ${
+                    featureAccess.canSaveImage
+                      ? "border-[#ead0da] bg-white/78 text-[#9f4f68] hover:bg-[#fff5fb]"
+                      : "border-[#e5d8e9] bg-[#faf6fc] text-[#8a718e] hover:bg-[#f6eef9]"
+                  }`}
                 >
-                  {isSavingImage ? "正在生成图片..." : "分享 / 保存学习卡片"}
+                  {featureAccess.canSaveImage
+                    ? isSavingImage
+                      ? "正在生成图片..."
+                      : "分享 / 保存学习卡片"
+                    : "🔒 保存学习卡片（会员）"}
                 </button>
               </div>
             </div>
@@ -746,6 +698,158 @@ export default function Home() {
             </div>
           )}
         </section>
+
+        {membership ? (
+          <section className="rounded-[2.1rem] border border-[#e7d8ef] bg-[#fcf8ff]/92 p-5 shadow-[0_22px_65px_rgba(168,139,190,0.13)] backdrop-blur-xl sm:p-6">
+            <p className="text-lg font-semibold text-[#9067aa]">会员已激活 ✨</p>
+            <p className="mt-2 text-sm font-semibold leading-7 text-[#6f5f78]">
+              会员版：今日无限生成
+            </p>
+            <div className="mt-4 rounded-3xl bg-white/72 px-4 py-4 text-sm leading-7 text-[#7b6f82] ring-1 ring-[#eadff1]">
+              {membership.type === "permanent" ? (
+                <p className="font-semibold text-[#9067aa]">永久测试会员</p>
+              ) : (
+                <p>
+                  有效期至：
+                  <span className="font-semibold text-[#9067aa]">
+                    {formatMembershipDate(membership.expiresAt as string)}
+                  </span>
+                </p>
+              )}
+            </div>
+          </section>
+        ) : (
+          <>
+            <section
+              ref={upgradeCardRef}
+              className="scroll-mt-5 rounded-[2.1rem] border border-[#efcfdb] bg-[#fff8fb]/96 p-5 shadow-[0_24px_70px_rgba(186,132,146,0.15)] backdrop-blur-xl sm:p-6"
+            >
+              <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[#c06d87]">
+                Full Notebook
+              </p>
+              <h2 className="mt-2 text-xl font-semibold text-[#9f4f68]">
+                {hasFreeUses ? "解锁完整学习笔记功能 ✨" : "今天的免费次数用完啦 ✨"}
+              </h2>
+              <p className="mt-3 text-sm leading-8 text-[#776b6f]">
+                免费版可以体验基础答案生成。开通后，整理错题时不用担心次数，也可以直接复制和保存学习卡片。
+              </p>
+
+              <div className="mt-5 grid gap-4 sm:grid-cols-2">
+                <div className="relative overflow-hidden rounded-[1.75rem] bg-white/82 p-5 shadow-[0_16px_38px_rgba(186,132,146,0.11)] ring-1 ring-[#f0d7e0]">
+                  <span className="absolute right-4 top-4 rounded-full bg-[#fff0f5] px-3 py-1 text-[11px] font-semibold text-[#b75f7a]">
+                    考前推荐
+                  </span>
+                  <p className="text-sm font-semibold text-[#8c6874]">7天体验版</p>
+                  <p className="mt-3 text-3xl font-semibold text-[#b75f7a]">
+                    9.9 元
+                    <span className="ml-1 text-sm font-medium text-[#9a858c]">/ 7 天</span>
+                  </p>
+                  <ul className="mt-5 space-y-2.5 text-sm leading-7 text-[#66595e]">
+                    <li>✓ 7天不限次数生成</li>
+                    <li>✓ 支持复制答案</li>
+                    <li>✓ 支持保存学习卡片图</li>
+                    <li>✓ 适合考前集中整理错题</li>
+                  </ul>
+                </div>
+
+                <div className="rounded-[1.75rem] bg-[#fcf8ff]/88 p-5 shadow-[0_16px_38px_rgba(168,139,190,0.10)] ring-1 ring-[#e7d9ef]">
+                  <p className="text-sm font-semibold text-[#826b91]">月卡</p>
+                  <p className="mt-3 text-3xl font-semibold text-[#956eae]">
+                    14.9 元
+                    <span className="ml-1 text-sm font-medium text-[#95879d]">/ 月</span>
+                  </p>
+                  <ul className="mt-5 space-y-2.5 text-sm leading-7 text-[#665c6c]">
+                    <li>✓ 30天不限次数生成</li>
+                    <li>✓ 适合长期复习历史主观题</li>
+                  </ul>
+                </div>
+              </div>
+
+              <a
+                href="#wechat-contact"
+                className="mt-5 inline-flex min-h-[3.25rem] w-full items-center justify-center rounded-full bg-[linear-gradient(135deg,#f0a8c3_0%,#c7a6ee_100%)] px-7 text-base font-semibold text-white shadow-[0_18px_36px_rgba(210,135,176,0.27)] transition hover:-translate-y-0.5 active:scale-[0.98] sm:w-auto"
+              >
+                联系我开通
+              </a>
+
+              <div
+                id="wechat-contact"
+                className="mt-5 scroll-mt-5 rounded-[1.75rem] border border-[#ead5dc] bg-white/68 p-4 text-center text-sm leading-7 text-[#9b7e87]"
+              >
+                <p className="font-semibold text-[#9f4f68]">微信扫码联系开通</p>
+                <p className="mt-1">添加时可以备注“历史会员”。</p>
+                <div className="mx-auto mt-4 max-w-[17rem] overflow-hidden rounded-[1.4rem] bg-white p-2 shadow-[0_16px_38px_rgba(186,132,146,0.13)] ring-1 ring-[#f0dde3]">
+                  <Image
+                    src="/wechat-qr.jpg"
+                    alt="微信开通会员二维码"
+                    width={888}
+                    height={1131}
+                    className="h-auto w-full rounded-[1rem]"
+                    sizes="(max-width: 640px) 75vw, 272px"
+                    priority={false}
+                  />
+                </div>
+              </div>
+            </section>
+
+            <section className="rounded-[2.1rem] border border-white/75 bg-[#fffaf5]/88 p-5 shadow-[0_18px_55px_rgba(186,132,146,0.10)] backdrop-blur-xl sm:p-6">
+              <div className="mb-4">
+                <p className="text-base font-semibold text-[#9f4f68]">
+                  已经开通？输入会员码激活
+                </p>
+                <p className="mt-1 text-sm leading-7 text-[#8a7b7f]">
+                  激活后，会员有效期内可以无限整理历史主观题。
+                </p>
+              </div>
+              <form
+                onSubmit={handleMembershipActivation}
+                className="flex flex-col gap-3 sm:flex-row"
+              >
+                <input
+                  value={membershipCode}
+                  onChange={(event) => {
+                    setMembershipCode(event.target.value);
+                    setMembershipMessage("");
+                  }}
+                  placeholder="请输入会员码"
+                  autoComplete="off"
+                  spellCheck={false}
+                  className="min-h-[3.25rem] w-full rounded-full border border-[#efd9e2] bg-white/82 px-5 text-sm font-semibold uppercase tracking-[0.04em] text-[#57484e] outline-none transition placeholder:normal-case placeholder:font-normal placeholder:tracking-normal placeholder:text-[#b6a8ac] focus:border-[#dfa0b8] focus:bg-white focus:shadow-[0_0_0_5px_rgba(235,166,190,0.16)]"
+                />
+                <button
+                  type="submit"
+                  disabled={!isStorageReady}
+                  className="inline-flex min-h-[3.25rem] shrink-0 items-center justify-center rounded-full border border-[#e6cced] bg-[#f7efff] px-6 text-sm font-semibold text-[#8d62a5] shadow-[0_12px_26px_rgba(168,139,190,0.12)] transition hover:-translate-y-0.5 hover:bg-[#f3e8ff] active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  激活会员
+                </button>
+              </form>
+              {membershipMessage ? (
+                <p className="mt-3 rounded-3xl bg-[#fff3f7] px-4 py-3 text-sm leading-7 text-[#a25c73] ring-1 ring-[#f2d5df]">
+                  {membershipMessage}
+                </p>
+              ) : null}
+            </section>
+          </>
+        )}
+
+        <section className="rounded-[2.1rem] border border-white/75 bg-white/55 p-5 text-center shadow-[0_18px_55px_rgba(186,132,146,0.08)] backdrop-blur-xl sm:p-6">
+          <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[#a98996]">
+            How Students Use It
+          </p>
+          <h2 className="mt-2 text-xl font-semibold text-[#493e42]">大家一般这样用它</h2>
+          <div className="mt-4 flex flex-wrap justify-center gap-2.5">
+            {commonUses.map((use) => (
+              <span
+                key={use}
+                className="rounded-full bg-[#fffaf7] px-4 py-2.5 text-sm font-medium text-[#846f76] shadow-[0_8px_20px_rgba(186,132,146,0.07)] ring-1 ring-[#eee0dc]"
+              >
+                {use}
+              </span>
+            ))}
+          </div>
+        </section>
+
         {toastMessage ? (
           <div className="fixed inset-x-4 bottom-5 z-20 mx-auto max-w-sm rounded-full bg-[#fff8fb] px-4 py-3 text-center text-sm font-semibold text-[#9f4f68] shadow-[0_18px_44px_rgba(186,132,146,0.18)] ring-1 ring-[#f1d8e2]">
             {toastMessage}
