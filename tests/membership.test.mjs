@@ -5,6 +5,7 @@ import {
   DAILY_FREE_LIMIT,
   MEMBERSHIP_CODES,
   activateMembership,
+  getNotebookFeatureAccess,
   getMembershipStatus,
   normalizeFreeUsage
 } from "../src/lib/membership.js";
@@ -102,5 +103,28 @@ test("free usage resets on a new day and clamps same-day values", () => {
   assert.deepEqual(normalizeFreeUsage({ date: "2026-06-13", remaining: -2 }, "2026-06-13"), {
     date: "2026-06-13",
     remaining: 0
+  });
+});
+
+test("free users receive one basic generation per day", () => {
+  assert.equal(DAILY_FREE_LIMIT, 1);
+  assert.deepEqual(normalizeFreeUsage(null, "2026-06-15"), {
+    date: "2026-06-15",
+    remaining: 1
+  });
+  assert.deepEqual(
+    normalizeFreeUsage({ date: "2026-06-15", remaining: 3 }, "2026-06-15"),
+    { date: "2026-06-15", remaining: 1 }
+  );
+});
+
+test("copy and image export require an active membership", () => {
+  assert.deepEqual(getNotebookFeatureAccess(false), {
+    canCopy: false,
+    canSaveImage: false
+  });
+  assert.deepEqual(getNotebookFeatureAccess(true), {
+    canCopy: true,
+    canSaveImage: true
   });
 });

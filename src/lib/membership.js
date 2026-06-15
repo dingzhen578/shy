@@ -1,4 +1,4 @@
-export const DAILY_FREE_LIMIT = 3;
+export const DAILY_FREE_LIMIT = 1;
 export const FREE_USAGE_STORAGE_KEY = "history-senior-notes-free-usage";
 export const MEMBERSHIP_STORAGE_KEY = "history-senior-notes-membership";
 export const USED_MEMBERSHIP_CODES_STORAGE_KEY = "history-senior-notes-used-membership-codes";
@@ -28,6 +28,13 @@ export const MEMBERSHIP_CODES = Object.freeze({
 });
 
 const DAY_IN_MILLISECONDS = 24 * 60 * 60 * 1000;
+
+export function getNotebookFeatureAccess(hasActiveMembership) {
+  return {
+    canCopy: hasActiveMembership === true,
+    canSaveImage: hasActiveMembership === true
+  };
+}
 
 function normalizeCode(code) {
   return typeof code === "string" ? code.trim().toUpperCase() : "";
