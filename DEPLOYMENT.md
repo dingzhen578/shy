@@ -85,7 +85,7 @@ pm2 -v
 
 ```bash
 cd /var/www
-git clone 你的GitHub仓库地址 history-note
+git clone https://github.com/dingzhen578/shy.git history-note
 cd history-note
 ```
 
