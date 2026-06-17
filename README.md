@@ -194,10 +194,11 @@ history-senior-notes-free-usage
 需要测试完整会员功能时，可以在会员码输入框中使用：
 
 ```text
-HISTORY-VIP-TEST
+HUBMLS9276642LXX
 ```
 
-激活后，复制答案和保存学习卡片图恢复可用。
+激活后会获得 7 天体验会员，复制答案和保存学习卡片图恢复可用。更多可分发会员码在
+`src/lib/membership.js` 中维护。
 
 ### 如何替换联系方式
 

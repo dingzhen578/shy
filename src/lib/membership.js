@@ -4,27 +4,28 @@ export const MEMBERSHIP_STORAGE_KEY = "history-senior-notes-membership";
 export const USED_MEMBERSHIP_CODES_STORAGE_KEY = "history-senior-notes-used-membership-codes";
 
 export const MEMBERSHIP_CODES = Object.freeze({
-  "HISTORY-7DAYS-001": { type: "7days", durationDays: 7 },
-  "HISTORY-7DAYS-002": { type: "7days", durationDays: 7 },
-  "HISTORY-7DAYS-003": { type: "7days", durationDays: 7 },
-  "HISTORY-7DAYS-004": { type: "7days", durationDays: 7 },
-  "HISTORY-7DAYS-005": { type: "7days", durationDays: 7 },
-  "HISTORY-7DAYS-006": { type: "7days", durationDays: 7 },
-  "HISTORY-7DAYS-007": { type: "7days", durationDays: 7 },
-  "HISTORY-7DAYS-008": { type: "7days", durationDays: 7 },
-  "HISTORY-7DAYS-009": { type: "7days", durationDays: 7 },
-  "HISTORY-7DAYS-010": { type: "7days", durationDays: 7 },
-  "HISTORY-MONTH-001": { type: "month", durationDays: 30 },
-  "HISTORY-MONTH-002": { type: "month", durationDays: 30 },
-  "HISTORY-MONTH-003": { type: "month", durationDays: 30 },
-  "HISTORY-MONTH-004": { type: "month", durationDays: 30 },
-  "HISTORY-MONTH-005": { type: "month", durationDays: 30 },
-  "HISTORY-MONTH-006": { type: "month", durationDays: 30 },
-  "HISTORY-MONTH-007": { type: "month", durationDays: 30 },
-  "HISTORY-MONTH-008": { type: "month", durationDays: 30 },
-  "HISTORY-MONTH-009": { type: "month", durationDays: 30 },
-  "HISTORY-MONTH-010": { type: "month", durationDays: 30 },
-  "HISTORY-VIP-TEST": { type: "permanent", durationDays: null }
+  // 7-day experience codes.
+  "HUBMLS9276642LXX": { type: "7days", durationDays: 7 },
+  "H8X1WQV0LDXBXY9M": { type: "7days", durationDays: 7 },
+  "HCPQIH13HEA54D9A": { type: "7days", durationDays: 7 },
+  "HDD4ZQT8JTO166AL": { type: "7days", durationDays: 7 },
+  "HZIXN3BWCN62DAGI": { type: "7days", durationDays: 7 },
+  "HH01RHJ0G607CY9G": { type: "7days", durationDays: 7 },
+  "HXUH0NI9GB0AWP76": { type: "7days", durationDays: 7 },
+  "HIIOQLDMIMKVEQP0": { type: "7days", durationDays: 7 },
+  "HPXOGOIHMSODOY6P": { type: "7days", durationDays: 7 },
+  "HY4PM6ZL1A9E8WWA": { type: "7days", durationDays: 7 },
+  // Monthly codes.
+  "H5862CZJ31U0ET3M": { type: "month", durationDays: 30 },
+  "HC28DXBZT0T0U6E3": { type: "month", durationDays: 30 },
+  "HWAWLFO92ETGHZ0Z": { type: "month", durationDays: 30 },
+  "H768XP2792K1BOIE": { type: "month", durationDays: 30 },
+  "HUMH0KQ4RKE8THTL": { type: "month", durationDays: 30 },
+  "HPEG00E8TIGVKJFM": { type: "month", durationDays: 30 },
+  "H7KDESCBQGP9RYG2": { type: "month", durationDays: 30 },
+  "HZG8057Y49RXX2VJ": { type: "month", durationDays: 30 },
+  "HEB1HFZ1UV01ZQHB": { type: "month", durationDays: 30 },
+  "H2WASTWBX0WXYISG": { type: "month", durationDays: 30 }
 });
 
 const DAY_IN_MILLISECONDS = 24 * 60 * 60 * 1000;
