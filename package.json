@@ -7,7 +7,7 @@
     "dev": "next dev",
     "serve:http": "node local-server.mjs",
     "build": "next build",
-    "start": "next start",
+    "start": "next start -p 3000",
     "lint": "eslint .",
     "test": "node --test"
   },
