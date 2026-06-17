@@ -27,6 +27,15 @@
 3. 7 天体验版和月卡会员可以不限次数生成。
 4. 页面会展示适用场景、会员权益和微信开通方式。
 
+同时支持 MVP 图片识别：
+
+1. 点击 `📷 上传题目图片`。
+2. 上传试卷、练习册或笔记里的历史题目图片。
+3. 系统先识别图片文字，并自动填入题目输入框。
+4. 用户检查或修改识别结果后，再点击 `帮我整理答案`。
+
+图片不会保存到数据库，也不会写入服务器硬盘。
+
 ## 2. 安装依赖
 
 进入项目目录：
@@ -59,6 +68,8 @@ cp .env.example .env.local
 OPENAI_API_KEY=你的 DeepSeek API Key
 OPENAI_BASE_URL=https://api.deepseek.com
 OPENAI_MODEL=deepseek-v4-flash
+# 可选：如果答案模型不支持图片识别，可单独配置支持视觉/OCR 的模型
+# OPENAI_OCR_MODEL=your_vision_ocr_model_here
 ```
 
 说明：
@@ -66,10 +77,44 @@ OPENAI_MODEL=deepseek-v4-flash
 - `OPENAI_API_KEY`：你的 DeepSeek API Key，必须填写。
 - `OPENAI_BASE_URL`：DeepSeek 兼容 OpenAI SDK 的接口地址。
 - `OPENAI_MODEL`：模型名，默认使用 `deepseek-v4-flash`。
+- `OPENAI_OCR_MODEL`：可选。图片识别使用的视觉/OCR 模型名；不配置时默认复用 `OPENAI_MODEL`。
 
 API Key 只会在服务端 API Route 中读取，不会暴露到前端页面。
 
-## 5. 本地运行
+## 5. 图片识别功能说明
+
+图片 OCR 入口在页面题目输入框附近：
+
+```text
+📷 上传题目图片
+```
+
+支持格式：
+
+```text
+jpg / jpeg / png / webp
+```
+
+限制：
+
+```text
+单张图片不超过 5MB
+```
+
+调用流程：
+
+```text
+前端 FormData 上传图片 -> /api/ocr -> 服务端调用 OpenAI SDK 兼容视觉接口 -> 返回识别文字 -> 自动填入输入框
+```
+
+注意：
+
+- `/api/ocr` 只在内存中读取图片，不保存图片文件。
+- OCR 和答案生成是两个独立接口。
+- OCR 成功后不会自动生成答案，用户需要先检查题目文字，再点击 `帮我整理答案`。
+- 如果当前 `OPENAI_MODEL` 不支持图片输入，可以在 `.env.local` 中单独添加 `OPENAI_OCR_MODEL`。
+
+## 6. 本地运行
 
 开发模式：
 
@@ -95,9 +140,9 @@ npm run serve:http
 http://127.0.0.1:3000
 ```
 
-## 6. 部署到 Vercel
+## 7. 部署到 Vercel
 
-### 6.1 上线前检查
+### 7.1 上线前检查
 
 先确认本地构建能通过：
 
@@ -113,7 +158,7 @@ git check-ignore -v .env.local
 
 如果能看到 `.gitignore` 规则，说明本地 API Key 不会被提交到 GitHub。
 
-### 6.2 推送到 GitHub
+### 7.2 推送到 GitHub
 
 如果这是第一次上传到 GitHub：
 
@@ -140,7 +185,7 @@ git commit -m "Prepare history notebook MVP for deployment"
 git push
 ```
 
-### 6.3 在 Vercel 导入项目
+### 7.3 在 Vercel 导入项目
 
 1. 打开 Vercel Dashboard。
 2. 点击 `Add New` -> `Project`。
@@ -154,6 +199,8 @@ git push
 OPENAI_API_KEY=你的 DeepSeek API Key
 OPENAI_BASE_URL=https://api.deepseek.com
 OPENAI_MODEL=deepseek-v4-flash
+# 如果需要单独 OCR 模型，再加：
+# OPENAI_OCR_MODEL=your_vision_ocr_model_here
 ```
 
 这三个变量建议同时勾选 `Production` 和 `Preview`，方便正式站点和预览站点都能生成答案。
@@ -162,15 +209,16 @@ OPENAI_MODEL=deepseek-v4-flash
 
 部署后，Vercel 会自动运行 Next.js 项目。
 
-### 6.4 部署后检查
+### 7.4 部署后检查
 
 1. 打开 Vercel 生成的网址。
 2. 输入 `评价洋务运动`。
 3. 点击 `帮我整理答案`。
 4. 如果能生成五张学习笔记卡片，说明部署成功。
 5. 如果提示 `服务暂时没有配置好，请检查 API Key。`，回到 Vercel 项目的 `Settings` -> `Environment Variables` 检查变量名和值，然后重新部署。
+6. 测试图片识别时，点击 `📷 上传题目图片`，上传 5MB 以内的历史题目图片，确认识别文字会先填入输入框。
 
-## 7. 常见错误说明
+## 8. 常见错误说明
 
 ### 如何测试免费次数
 
@@ -233,6 +281,21 @@ cp .env.example .env.local
 - 网络请求暂时失败。
 
 可以先检查服务端控制台日志，项目不会把完整错误堆栈显示给用户。
+
+### 图片识别提示：这张图片有点模糊，暂时没有识别成功。
+
+可能原因：
+
+- 图片太模糊、反光、倾斜或文字太小。
+- 图片里没有清晰的历史题目。
+- 当前 OCR 模型不支持图片输入。
+- DeepSeek 或 OCR 服务临时失败。
+
+处理：
+
+- 换一张更清晰的图片。
+- 裁剪到只保留题目区域再上传。
+- 如果服务端日志提示模型不支持图片，请配置 `OPENAI_OCR_MODEL` 为支持视觉/OCR 的 OpenAI SDK 兼容模型。
 
 ### `npm install` 失败
 

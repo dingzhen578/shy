@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import type { FormEvent } from "react";
+import type { ChangeEvent, FormEvent } from "react";
 import { useEffect, useRef, useState } from "react";
 import { encouragements } from "@/src/lib/encouragements";
 import {
@@ -20,6 +20,22 @@ type GenerateResponse = {
   answer?: string;
   error?: string;
 };
+
+type OcrResponse = {
+  text?: string;
+  error?: string;
+};
+
+const ocrAcceptedMimeTypes = new Set([
+  "image/jpeg",
+  "image/png",
+  "image/webp"
+]);
+
+const ocrAcceptAttribute = ".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp";
+const ocrMaxFileSizeBytes = 5 * 1024 * 1024;
+const ocrFailureMessage =
+  "这张图片有点模糊，暂时没有识别成功。可以换一张更清晰的图片，或直接手动输入题目。";
 
 const sampleQuestions = [
   "评价洋务运动",
@@ -239,6 +255,9 @@ export default function Home() {
   const [error, setError] = useState("");
   const [encouragement, setEncouragement] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [isOcrLoading, setIsOcrLoading] = useState(false);
+  const [ocrMessage, setOcrMessage] = useState("");
+  const [ocrError, setOcrError] = useState("");
   const [isSavingImage, setIsSavingImage] = useState(false);
   const [toastMessage, setToastMessage] = useState("");
   const [freeUsage, setFreeUsage] = useState<FreeUsage>({
@@ -252,6 +271,7 @@ export default function Home() {
   const [isStorageReady, setIsStorageReady] = useState(false);
   const answerCardRef = useRef<HTMLElement>(null);
   const upgradeCardRef = useRef<HTMLElement>(null);
+  const imageInputRef = useRef<HTMLInputElement>(null);
   const isMember = membership !== null;
   const hasFreeUses = freeUsage.remaining > 0;
   const hasGenerationAccess = isMember || hasFreeUses;
@@ -414,6 +434,74 @@ export default function Home() {
     }
   }
 
+  function clearImageInput() {
+    if (imageInputRef.current) {
+      imageInputRef.current.value = "";
+    }
+  }
+
+  async function handleQuestionImageChange(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+
+    if (!file) {
+      return;
+    }
+
+    setOcrMessage("");
+    setOcrError("");
+
+    if (!ocrAcceptedMimeTypes.has(file.type)) {
+      setOcrError("请上传 jpg、jpeg、png 或 webp 格式的图片。");
+      clearImageInput();
+      return;
+    }
+
+    if (file.size > ocrMaxFileSizeBytes) {
+      setOcrError("图片太大啦，请上传 5MB 以内的图片。");
+      clearImageInput();
+      return;
+    }
+
+    const formData = new FormData();
+    formData.append("image", file);
+
+    setIsOcrLoading(true);
+    setOcrMessage("正在识别题目文字，请稍等一下 📖");
+    setError("");
+
+    try {
+      const response = await fetch("/api/ocr", {
+        method: "POST",
+        body: formData
+      });
+      const data = (await response.json()) as OcrResponse;
+
+      if (!response.ok) {
+        throw new Error(data.error || ocrFailureMessage);
+      }
+
+      const recognizedText = data.text?.trim();
+
+      if (!recognizedText) {
+        throw new Error(ocrFailureMessage);
+      }
+
+      setQuestion(recognizedText);
+      setAnswer("");
+      setEncouragement("");
+      setOcrError("");
+      setOcrMessage("我识别出了下面这道题，你可以先检查一下再生成答案 ✨");
+    } catch (uploadError) {
+      setOcrMessage("");
+      setOcrError(
+        uploadError instanceof Error ? uploadError.message : ocrFailureMessage
+      );
+    } finally {
+      setIsOcrLoading(false);
+      clearImageInput();
+    }
+  }
+
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
@@ -559,6 +647,41 @@ export default function Home() {
             className="min-h-44 w-full resize-y rounded-[1.75rem] border border-[#efd9d1] bg-white/80 px-4 py-4 text-base leading-8 text-[#332b2e] outline-none transition duration-200 placeholder:text-[#b6a8ac] focus:border-[#e6a0b6] focus:bg-white focus:shadow-[0_0_0_5px_rgba(235,166,190,0.18)]"
           />
 
+          <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <input
+              ref={imageInputRef}
+              type="file"
+              accept={ocrAcceptAttribute}
+              onChange={handleQuestionImageChange}
+              className="hidden"
+              aria-label="上传题目图片"
+            />
+            <button
+              type="button"
+              onClick={() => imageInputRef.current?.click()}
+              disabled={isOcrLoading}
+              className="inline-flex min-h-[3rem] w-full items-center justify-center rounded-full border border-[#ead0da] bg-white/78 px-5 text-sm font-semibold text-[#9f4f68] shadow-[0_12px_26px_rgba(186,132,146,0.10)] transition hover:-translate-y-0.5 hover:bg-[#fff5fb] active:scale-[0.98] disabled:translate-y-0 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
+            >
+              {isOcrLoading ? "正在识别..." : "📷 上传题目图片"}
+            </button>
+            <p className="text-xs leading-6 text-[#aa9098]">
+              支持 jpg、png、webp，单张不超过 5MB
+            </p>
+          </div>
+
+          <div aria-live="polite">
+            {ocrMessage ? (
+              <p className="mt-3 rounded-3xl bg-[#fff5fb] px-4 py-3 text-sm leading-7 text-[#9a6474] ring-1 ring-[#f4d7e3]">
+                {ocrMessage}
+              </p>
+            ) : null}
+            {ocrError ? (
+              <p className="mt-3 rounded-3xl bg-[#fff4f4] px-4 py-3 text-sm leading-7 text-[#a45151] ring-1 ring-[#f3c8c8]">
+                {ocrError}
+              </p>
+            ) : null}
+          </div>
+
           <p className="mt-3 text-sm font-semibold text-[#9f4f68]">
             试试这些题目
           </p>
@@ -583,7 +706,7 @@ export default function Home() {
             </p>
             <button
               type="submit"
-              disabled={isLoading || !isStorageReady || !hasGenerationAccess}
+              disabled={isLoading || isOcrLoading || !isStorageReady || !hasGenerationAccess}
               className="inline-flex min-h-[3.25rem] w-full items-center justify-center rounded-full bg-[linear-gradient(135deg,#f0a8c3_0%,#c7a6ee_100%)] px-7 text-base font-semibold text-white shadow-[0_18px_34px_rgba(210,135,176,0.28)] transition duration-200 hover:-translate-y-0.5 hover:shadow-[0_20px_42px_rgba(210,135,176,0.34)] active:scale-[0.98] disabled:translate-y-0 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
             >
               {isLoading ? "正在整理中..." : "帮我整理答案"}
