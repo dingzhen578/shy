@@ -254,6 +254,7 @@ export default function Home() {
   const [answer, setAnswer] = useState("");
   const [error, setError] = useState("");
   const [encouragement, setEncouragement] = useState("");
+  const [isAnswerReady, setIsAnswerReady] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [isOcrLoading, setIsOcrLoading] = useState(false);
   const [ocrMessage, setOcrMessage] = useState("");
@@ -269,6 +270,7 @@ export default function Home() {
   const [membershipCode, setMembershipCode] = useState("");
   const [membershipMessage, setMembershipMessage] = useState("");
   const [isStorageReady, setIsStorageReady] = useState(false);
+  const answerSectionRef = useRef<HTMLElement>(null);
   const answerCardRef = useRef<HTMLElement>(null);
   const upgradeCardRef = useRef<HTMLElement>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
@@ -364,6 +366,11 @@ export default function Home() {
     setToastMessage("开通体验版后，就可以复制和保存学习卡片啦 ✨");
     upgradeCardRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
     window.setTimeout(() => setToastMessage(""), 3000);
+  }
+
+  function handleQuestionChange(nextQuestion: string) {
+    setQuestion(nextQuestion);
+    setIsAnswerReady(false);
   }
 
   async function handleSaveImage() {
@@ -489,6 +496,7 @@ export default function Home() {
       setQuestion(recognizedText);
       setAnswer("");
       setEncouragement("");
+      setIsAnswerReady(false);
       setOcrError("");
       setOcrMessage("我识别出了下面这道题，你可以先检查一下再生成答案 ✨");
     } catch (uploadError) {
@@ -534,11 +542,13 @@ export default function Home() {
       setError("先写一道历史题目吧，例如：评价洋务运动。");
       setAnswer("");
       setEncouragement("");
+      setIsAnswerReady(false);
       return;
     }
 
     if (!hasActiveMembership && currentUsage.remaining <= 0) {
       setError("");
+      setIsAnswerReady(false);
       return;
     }
 
@@ -546,6 +556,7 @@ export default function Home() {
     setError("");
     setAnswer("");
     setEncouragement("");
+    setIsAnswerReady(false);
 
     try {
       const response = await fetch("/api/generate", {
@@ -568,6 +579,13 @@ export default function Home() {
 
       setAnswer(data.answer);
       setEncouragement(pickEncouragement());
+      setIsAnswerReady(true);
+      window.setTimeout(() => {
+        answerSectionRef.current?.scrollIntoView({
+          behavior: "smooth",
+          block: "start"
+        });
+      }, 80);
 
       if (!hasActiveMembership) {
         decrementFreeUsage(currentUsage);
@@ -642,7 +660,7 @@ export default function Home() {
           <textarea
             id="history-question"
             value={question}
-            onChange={(event) => setQuestion(event.target.value)}
+            onChange={(event) => handleQuestionChange(event.target.value)}
             placeholder="例如：评价洋务运动"
             className="min-h-44 w-full resize-y rounded-[1.75rem] border border-[#efd9d1] bg-white/80 px-4 py-4 text-base leading-8 text-[#332b2e] outline-none transition duration-200 placeholder:text-[#b6a8ac] focus:border-[#e6a0b6] focus:bg-white focus:shadow-[0_0_0_5px_rgba(235,166,190,0.18)]"
           />
@@ -690,7 +708,7 @@ export default function Home() {
               <button
                 key={sampleQuestion}
                 type="button"
-                onClick={() => setQuestion(sampleQuestion)}
+                onClick={() => handleQuestionChange(sampleQuestion)}
                 className="min-h-0 shrink-0 rounded-full border border-[#f0d9df] bg-white/72 px-3.5 py-2 text-xs font-semibold text-[#9b6677] shadow-none transition hover:-translate-y-0.5 hover:bg-[#fff5fb] hover:shadow-[0_10px_22px_rgba(210,135,176,0.12)] active:scale-[0.98]"
               >
                 {sampleQuestion}
@@ -735,9 +753,10 @@ export default function Home() {
         </section>
 
         <section
+          ref={answerSectionRef}
           aria-live="polite"
           aria-busy={isLoading}
-          className="min-h-80 rounded-[2.1rem] border border-white/75 bg-[#fffaf5]/90 p-5 shadow-[0_22px_65px_rgba(186,132,146,0.12)] backdrop-blur-xl sm:p-7"
+          className="scroll-mt-5 min-h-80 rounded-[2.1rem] border border-white/75 bg-[#fffaf5]/90 p-5 shadow-[0_22px_65px_rgba(186,132,146,0.12)] backdrop-blur-xl sm:p-7"
         >
           <div className="mb-5 flex items-center justify-between gap-3">
             <div>
@@ -763,6 +782,16 @@ export default function Home() {
             </div>
           ) : answer ? (
             <div className="space-y-4">
+              {isAnswerReady ? (
+                <div className="rounded-[1.55rem] border border-[#d7ead4] bg-[#f4fbef]/90 px-4 py-4 shadow-[0_12px_30px_rgba(104,146,99,0.08)]">
+                  <p className="text-[15px] font-semibold text-[#5d8a57]">
+                    ✅ 答案已生成完毕
+                  </p>
+                  <p className="mt-1 text-sm leading-7 text-[#70856b]">
+                    可以先检查内容，再复制到错题本里 ✨
+                  </p>
+                </div>
+              ) : null}
               <article
                 ref={answerCardRef}
                 className="rounded-[1.85rem] bg-[#fffdf9] p-5 shadow-[inset_0_0_0_1px_rgba(240,226,221,0.9)] sm:p-7"
